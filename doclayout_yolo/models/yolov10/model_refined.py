@@ -29,18 +29,17 @@ class YOLOv10RefinedDetectionModel(YOLOv10DetectionModel):
     """
     
     def __init__(self, cfg="yolov10m.yaml", ch=3, nc=None, verbose=True):
+        # Initialize training stage and refinement settings first
+        self.training_stage = 'base'
+        self.use_refinement = False
+        self.refinement_module = None
+        
+        # Initialize parent class
         super().__init__(cfg, ch, nc, verbose)
         
         # Initialize OCR and text feature extractors
         self.ocr_extractor = SimpleOCRExtractor()
         self.text_feature_extractor = TextFeatureExtractor()
-        
-        # Initialize refinement module (will be set up after model is fully constructed)
-        self.refinement_module = None
-        self.use_refinement = False
-        
-        # Training stage: 'base' or 'refinement'
-        self.training_stage = 'base'
     
     def setup_refinement_module(self, yolo_feature_dim: int = 512, hidden_dims: List[int] = [256, 128]):
         """

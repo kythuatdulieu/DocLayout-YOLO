@@ -3,7 +3,7 @@
 __version__ = "0.0.2"
 
 from doclayout_yolo.data.explorer.explorer import Explorer
-from doclayout_yolo.models import RTDETR, SAM, YOLO, YOLOWorld, YOLOv10
+from doclayout_yolo.models import RTDETR, SAM, YOLO, YOLOWorld, YOLOv10, YOLOv10Refined
 from doclayout_yolo.models.fastsam import FastSAM
 from doclayout_yolo.models.nas import NAS
 from doclayout_yolo.utils import ASSETS, SETTINGS as settings
@@ -23,5 +23,6 @@ __all__ = (
     "download",
     "settings",
     "Explorer",
-    "YOLOv10"
+    "YOLOv10",
+    "YOLOv10Refined"
 )
