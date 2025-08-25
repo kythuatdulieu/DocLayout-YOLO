@@ -1,0 +1,102 @@
+# DocLayout-YOLO Hardware-Specific Configuration
+# Configuration templates for different compute environments
+
+# Local Development (CPU i5-13420H + GPU GTX 2050 5GB)
+local_development:
+  device: "0"  # Single GPU
+  batch_size: 8  # Conservative for 5GB VRAM
+  workers: 4  # For 8-core CPU
+  image_size: 1120
+  base_epochs: 200  # Reduced for faster iteration
+  refinement_epochs: 50
+  patience: 50
+  mixed_precision: true  # Enable for memory efficiency
+  
+  # Training parameters optimized for GTX 2050
+  lr0: 0.01  # Lower learning rate for stability
+  warmup_epochs: 5
+  mosaic: 0.8  # Moderate augmentation
+  
+  # Memory optimizations
+  save_period: 20  # Save less frequently to reduce I/O
+  val_period: 5   # Validate less frequently during training
+
+# Kaggle Environment
+kaggle:
+  device: "0"
+  batch_size: 16  # Can use more with Kaggle GPUs
+  workers: 2     # Kaggle has fewer CPU cores
+  image_size: 1120
+  base_epochs: 300
+  refinement_epochs: 100
+  patience: 100
+  mixed_precision: true
+  
+  # Kaggle-specific optimizations
+  lr0: 0.02
+  warmup_epochs: 3
+  mosaic: 1.0
+  
+  # Kaggle has time limits, so optimize for speed
+  save_period: 50
+  val_period: 10
+
+# Google Colab
+colab:
+  device: "0"
+  batch_size: 12  # Balance between speed and memory
+  workers: 2
+  image_size: 1120
+  base_epochs: 300
+  refinement_epochs: 100
+  patience: 100
+  mixed_precision: true
+  
+  # Colab-specific settings
+  lr0: 0.02
+  warmup_epochs: 3
+  mosaic: 1.0
+  
+  # Colab has session limits
+  save_period: 25
+  val_period: 5
+
+# High-End Server (Multi-GPU)
+server:
+  device: "0,1,2,3"  # Multi-GPU
+  batch_size: 64     # Large batch size
+  workers: 8
+  image_size: 1120
+  base_epochs: 500
+  refinement_epochs: 200
+  patience: 100
+  mixed_precision: true
+  
+  # High-performance settings
+  lr0: 0.04  # Higher LR for larger batch
+  warmup_epochs: 3
+  mosaic: 1.0
+  
+  # More frequent validation on powerful hardware
+  save_period: 10
+  val_period: 1
+
+# CPU-Only (Fallback)
+cpu_only:
+  device: "cpu"
+  batch_size: 2     # Very small for CPU
+  workers: 4
+  image_size: 640   # Smaller image size for CPU
+  base_epochs: 50   # Much fewer epochs
+  refinement_epochs: 20
+  patience: 20
+  mixed_precision: false  # No mixed precision on CPU
+  
+  # CPU-optimized settings
+  lr0: 0.005
+  warmup_epochs: 2
+  mosaic: 0.5
+  
+  # Minimal I/O for CPU training
+  save_period: 10
+  val_period: 10
