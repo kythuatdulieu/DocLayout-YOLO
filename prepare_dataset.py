@@ -13,7 +13,7 @@ from huggingface_hub import snapshot_download
 def download_doclaynet(data_dir="./layout_data"):
     """Download DocLayNet dataset from HuggingFace."""
     data_path = Path(data_dir)
-    data_path.mkdir(exist_ok=True)
+    data_path.mkdir(parents=True, exist_ok=True)
     
     print(f"Downloading DocLayNet dataset to {data_path.absolute()}...")
     

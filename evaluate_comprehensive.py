@@ -219,7 +219,7 @@ class ModelEvaluator:
     def save_results(self, results: Dict, output_dir: str = "evaluation_results"):
         """Save results to files."""
         output_path = Path(output_dir)
-        output_path.mkdir(exist_ok=True)
+        output_path.mkdir(parents=True, exist_ok=True)
         
         timestamp = int(time.time())
         

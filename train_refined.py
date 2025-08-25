@@ -21,7 +21,7 @@ from doclayout_yolo.models.yolov10.model_refined import YOLOv10Refined
 
 def setup_logging(log_dir: Path):
     """Set up logging to file and console."""
-    log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"training_{int(time.time())}.log"
     
     logging.basicConfig(
