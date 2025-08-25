@@ -1,0 +1,16 @@
+names:
+- Caption
+- Footnote
+- Formula
+- List-item
+- Page-footer
+- Page-header
+- Picture
+- Section-header
+- Table
+- Text
+- Title
+nc: 11
+path: /home/runner/work/DocLayout-YOLO/DocLayout-YOLO/test_dataset
+train: images/train
+val: images/val

@@ -85,12 +85,13 @@ class YOLOv10RefinedDetectionModel(YOLOv10DetectionModel):
         """Enable or disable refinement module during inference."""
         self.use_refinement = enable and self.refinement_module is not None
         
-    def set_training_stage(self, stage: str):
+    def set_training_stage(self, stage: str, freeze_backbone_layers: int = None):
         """
         Set training stage: 'base' for training base YOLO, 'refinement' for training refinement module.
         
         Args:
             stage: 'base' or 'refinement'
+            freeze_backbone_layers: Number of backbone layers to freeze (None = freeze all except refinement)
         """
         if stage not in ['base', 'refinement']:
             raise ValueError("Training stage must be 'base' or 'refinement'")
@@ -98,16 +99,28 @@ class YOLOv10RefinedDetectionModel(YOLOv10DetectionModel):
         self.training_stage = stage
         
         if stage == 'refinement':
-            # Freeze YOLO parameters
-            for name, param in self.named_parameters():
-                if 'refinement_module' not in name:
-                    param.requires_grad = False
-            print("Froze YOLO parameters for refinement training")
+            if freeze_backbone_layers is not None:
+                # Partial freezing strategy - freeze only first N layers
+                frozen_count = 0
+                for name, param in self.named_parameters():
+                    if 'refinement_module' not in name and 'model' in name:
+                        if frozen_count < freeze_backbone_layers:
+                            param.requires_grad = False
+                            frozen_count += 1
+                        else:
+                            param.requires_grad = True
+                print(f"Partial freeze: froze first {frozen_count} backbone layers")
+            else:
+                # Complete freezing strategy - freeze all YOLO parameters
+                for name, param in self.named_parameters():
+                    if 'refinement_module' not in name:
+                        param.requires_grad = False
+                print("Complete freeze: froze all YOLO parameters for refinement training")
         else:
-            # Unfreeze YOLO parameters
+            # Unfreeze all parameters for base training
             for param in self.parameters():
                 param.requires_grad = True
-            print("Unfroze YOLO parameters for base training")
+            print("Unfroze all parameters for base training")
     
     def extract_yolo_features(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -195,6 +208,56 @@ class YOLOv10RefinedDetectionTrainer(YOLOv10DetectionTrainer):
         super().__init__(cfg, overrides, _callbacks)
         self.training_stage = 'base'
     
+    def get_dataloader(self, dataset_path, batch_size=16, rank=0, mode="train"):
+        """
+        Create dataloader with optional text feature extraction for refinement training.
+        """
+        # Check if we need text features (refinement stage)
+        extract_text_features = (
+            self.training_stage == 'refinement' and 
+            hasattr(self.args, 'use_refinement') and 
+            self.args.use_refinement
+        )
+        
+        if extract_text_features:
+            # Use custom refinement dataset
+            from doclayout_yolo.data.refinement_dataset import create_refinement_dataloader
+            
+            dataloader = create_refinement_dataloader(
+                dataset_path=dataset_path,
+                batch_size=batch_size,
+                extract_text_features=True,
+                shuffle=(mode == "train"),
+                num_workers=min(8, self.args.workers)
+            )
+            
+            print(f"✓ Using refinement dataloader with text features (mode: {mode})")
+            return dataloader
+        else:
+            # Use standard YOLO dataloader
+            return super().get_dataloader(dataset_path, batch_size, rank, mode)
+    
+    def preprocess_batch(self, batch):
+        """
+        Preprocess batch with text features support.
+        
+        Args:
+            batch: Batch from dataloader
+            
+        Returns:
+            Preprocessed batch ready for model
+        """
+        # Standard preprocessing
+        batch = super().preprocess_batch(batch)
+        
+        # Preserve text features if present
+        if isinstance(batch, dict) and 'text_features' in batch:
+            # Move text features to device
+            if batch['text_features'] is not None:
+                batch['text_features'] = batch['text_features'].to(self.device, non_blocking=True)
+        
+        return batch
+    
     def get_model(self, cfg=None, weights=None, verbose=True):
         """Get model with refinement capabilities."""
         model = YOLOv10RefinedDetectionModel(cfg, ch=3, nc=self.data["nc"], verbose=verbose)
@@ -254,14 +317,31 @@ class YOLOv10Refined(Model, PyTorchModelHubMixin,
         kwargs['use_refinement'] = False
         return self.train(**kwargs)
     
-    def train_refinement(self, base_weights=None, **kwargs):
-        """Train the refinement module (Stage 2)."""
+    def train_refinement(self, base_weights=None, freeze_backbone_layers=None, **kwargs):
+        """
+        Train the refinement module (Stage 2).
+        
+        Args:
+            base_weights: Path to pre-trained base model weights
+            freeze_backbone_layers: Number of backbone layers to freeze (None = freeze all)
+            **kwargs: Additional training arguments
+        """
         if base_weights:
             # Load pre-trained base model
             self.load(base_weights)
         
+        # Setup refinement training parameters
         kwargs['training_stage'] = 'refinement'
         kwargs['use_refinement'] = True
+        
+        # Add freezing strategy
+        if freeze_backbone_layers is not None:
+            kwargs['freeze_backbone_layers'] = freeze_backbone_layers
+        
+        # Setup refinement module if not already done
+        if hasattr(self.model, 'setup_refinement_module'):
+            self.model.setup_refinement_module()
+        
         return self.train(**kwargs)
     
     def enable_refinement(self, enable: bool = True):

@@ -1,25 +1,29 @@
 # DocLayout-YOLO Hardware-Specific Configuration
 # Configuration templates for different compute environments
 
-# Local Development (CPU i5-13420H + GPU GTX 2050 5GB)
+# Local Development (CPU i5-13420H + GPU RTX 2050 4GB) - OPTIMIZED
 local_development:
-  device: "0"  # Single GPU
-  batch_size: 8  # Conservative for 5GB VRAM
-  workers: 4  # For 8-core CPU
-  image_size: 1120
-  base_epochs: 200  # Reduced for faster iteration
-  refinement_epochs: 50
-  patience: 50
-  mixed_precision: true  # Enable for memory efficiency
+  device: "cpu"  # Use CPU for testing (change to "0" for GPU)
+  batch_size: 4  # Reduced for CPU
+  workers: 2  # Reduced for testing
+  image_size: 256  # Smaller for CPU testing
+  base_epochs: 3  # Very few epochs for testing
+  refinement_epochs: 2  # Minimal for testing
+  patience: 5  # Early stopping
+  mixed_precision: false  # Disable for CPU
   
-  # Training parameters optimized for GTX 2050
-  lr0: 0.01  # Lower learning rate for stability
-  warmup_epochs: 5
-  mosaic: 0.8  # Moderate augmentation
+  # Training parameters optimized for testing
+  lr0: 0.01  # Stable learning rate
+  refinement_lr0: 0.002  # Lower LR for refinement
+  warmup_epochs: 1  # Minimal warmup
+  refinement_warmup_epochs: 1  # Minimal warmup for refinement
+  mosaic: 0.3  # Light augmentation for testing
   
-  # Memory optimizations
-  save_period: 20  # Save less frequently to reduce I/O
-  val_period: 5   # Validate less frequently during training
+  # Memory and speed optimizations
+  save_period: 1  # Frequent saves for testing
+  val_period: 1   # Regular validation
+  freeze_backbone_layers: 5  # Partial freezing strategy
+  enable_gradient_checkpointing: false  # Not needed for small models
 
 # Kaggle Environment
 kaggle:
