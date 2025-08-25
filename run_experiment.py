@@ -135,6 +135,10 @@ class ExperimentRunner:
             "--project", "experiments/baseline",
             "--plot", "1"
         ]
+
+        # Optional AMP flag if script supports it
+        if "mixed_precision" in config:
+            cmd.extend(["--amp", "1" if config["mixed_precision"] else "0"])  # train.py should ignore if unsupported
         
         try:
             self.logger.info(f"Running command: {' '.join(cmd)}")
@@ -174,6 +178,10 @@ class ExperimentRunner:
             "--project", "experiments/refinement",
             "--plot", "1"
         ]
+
+        # Add AMP flag for refined training
+        if "mixed_precision" in config:
+            cmd.extend(["--amp", "1" if config["mixed_precision"] else "0"])
         
         if base_weights:
             cmd.extend(["--base-weights", base_weights])

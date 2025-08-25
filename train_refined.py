@@ -21,7 +21,7 @@ from doclayout_yolo.models.yolov10.model_refined import YOLOv10Refined
 
 def setup_logging(log_dir: Path):
     """Set up logging to file and console."""
-    log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"training_{int(time.time())}.log"
     
     logging.basicConfig(
@@ -81,28 +81,33 @@ def train_base_model(args, logger):
     logger.info(f"Batch size: {args.batch_size}")
     logger.info(f"Image size: {args.image_size}")
     
-    # Train base model
-    results = model.train(
-        data=f'{args.data}.yaml',
-        epochs=args.base_epochs,
-        warmup_epochs=args.warmup_epochs,
-        lr0=args.lr0,
-        optimizer=args.optimizer,
-        momentum=args.momentum,
-        imgsz=args.image_size,
-        mosaic=args.mosaic,
-        batch=args.batch_size,
-        device=args.device,
-        workers=args.workers,
-        plots=args.plot,
-        exist_ok=True,
-        val=args.val,
-        val_period=args.val_period,
-        save_period=args.save_period,
-        patience=args.patience,
-        project=args.project,
-        name=base_name,
-    )
+    # If epochs == 0 we skip actual training but still need a baseline weights file (user must supply via --base-weights later)
+    if args.base_epochs > 0:
+        results = model.train(
+            data=f'{args.data}.yaml',
+            epochs=args.base_epochs,
+            warmup_epochs=args.warmup_epochs,
+            lr0=args.lr0,
+            optimizer=args.optimizer,
+            momentum=args.momentum,
+            imgsz=args.image_size,
+            mosaic=args.mosaic,
+            batch=args.batch_size,
+            device=args.device,
+            workers=args.workers,
+            amp=bool(args.amp),
+            plots=bool(args.plot),
+            exist_ok=True,
+            val=bool(args.val),
+            val_period=args.val_period,
+            save_period=args.save_period,
+            patience=args.patience,
+            project=args.project,
+            name=base_name,
+        )
+    else:
+        logger.info("Base epochs = 0 -> Skip base training stage.")
+        results = None
     
     # Get path to best model
     base_weights = Path(args.project) / base_name / "weights" / "best.pt"
@@ -122,7 +127,17 @@ def train_refinement_module(args, base_weights, logger):
     logger.info(f"Loading base weights from: {base_weights}")
     
     # Use refined model for second stage
-    model = YOLOv10Refined(base_weights)
+    # Accept either weights file or model yaml; if base_weights points to a file use it, else treat as model config
+    bw_path = Path(base_weights)
+    # Always instantiate model with architecture yaml to ensure cfg is valid
+    arch_cfg = f'yolov10{args.model}.yaml'
+    model = YOLOv10Refined(arch_cfg)
+    # Load weights manually if file exists
+    if bw_path.exists() and bw_path.is_file():
+        try:
+            model.load(str(bw_path))
+        except Exception as e:
+            logger.warning(f"Failed to load base weights {bw_path}: {e}. Proceeding without.")
     
     # Training parameters for refinement
     refinement_name = f"stage2_refined_{args.data}_epoch{args.refinement_epochs}_imgsz{args.image_size}_bs{args.batch_size}"
@@ -133,7 +148,7 @@ def train_refinement_module(args, base_weights, logger):
     
     # Train refinement module
     results = model.train_refinement(
-        base_weights=base_weights,
+        base_weights=str(bw_path) if bw_path.exists() else None,
         data=f'{args.data}.yaml',
         epochs=args.refinement_epochs,
         lr0=args.refinement_lr,
@@ -142,9 +157,10 @@ def train_refinement_module(args, base_weights, logger):
         batch=args.batch_size,
         device=args.device,
         workers=args.workers,
-        plots=args.plot,
+        amp=bool(args.amp),
+        plots=bool(args.plot),
         exist_ok=True,
-        val=args.val,
+        val=bool(args.val),
         val_period=args.val_period,
         save_period=args.save_period,
         patience=args.patience // 2,  # Less patience for refinement
@@ -235,6 +251,7 @@ def main():
     parser.add_argument('--save-period', default=10, type=int, help='Save period')
     parser.add_argument('--patience', default=100, type=int, help='Early stopping patience')
     parser.add_argument('--plot', default=1, type=int, help='Generate plots')
+    parser.add_argument('--amp', default=1, type=int, help='Use Automatic Mixed Precision (1/0)')
     
     # Environment
     parser.add_argument('--skip-env-check', action='store_true', help='Skip conda environment check')

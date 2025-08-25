@@ -36,6 +36,23 @@ class YOLOv10RefinedDetectionModel(YOLOv10DetectionModel):
         
         # Initialize parent class
         super().__init__(cfg, ch, nc, verbose)
+
+        # Ensure num-classes attribute exists for refinement setup
+        if not hasattr(self, 'nc') or self.nc is None:
+            try:
+                if nc is not None:
+                    self.nc = nc
+                elif hasattr(self, 'model') and hasattr(self.model, 'names'):
+                    self.nc = len(self.model.names)
+                else:
+                    # Fallback: try detection head attribute
+                    head = getattr(self, 'model', None)
+                    if head is not None and hasattr(head, 'nc'):
+                        self.nc = head.nc
+                    else:
+                        self.nc = 0
+            except Exception:
+                self.nc = nc if nc is not None else 0
         
         # Initialize OCR and text feature extractors
         self.ocr_extractor = SimpleOCRExtractor()
@@ -116,12 +133,13 @@ class YOLOv10RefinedDetectionModel(YOLOv10DetectionModel):
         
         return predictions, yolo_features
     
-    def forward(self, x, augment=False, profile=False, visualize=False):
+    def forward(self, x, augment=False, profile=False, visualize=False, embed=None, **kwargs):
         """
         Forward pass with optional refinement.
         
         Args:
-            x: Input tensor or dict with 'images' and 'text_features' keys
+            x: Either a batch dict (as passed by the Trainer), or an image tensor, or a dict containing
+               'images' (or Ultralytics-style 'img') plus optional 'text_features'.
             augment: Whether to use augmentation during inference
             profile: Whether to profile the model
             visualize: Whether to visualize features
@@ -129,32 +147,44 @@ class YOLOv10RefinedDetectionModel(YOLOv10DetectionModel):
         Returns:
             Model predictions, potentially refined with text features
         """
-        # Handle different input formats
+        # If a full batch dict is passed (trainer -> model(batch)), mimic BaseModel.forward behaviour:
+        # return the computed loss by delegating to self.loss(). DetectionModel.loss will recall this
+        # forward with the tensor (batch['img']) only, which then follows the normal path below.
+        if isinstance(x, dict) and (('img' in x) or ('images' in x and 'cls' in x)):  # training batch
+            # Delegate to loss function (will call forward again with tensor) to keep training loop intact.
+            return self.loss(x)
+
+        # Handle lightweight dict input carrying just tensors (inference with optional text features)
+        text_features = None
         if isinstance(x, dict):
-            images = x['images']
+            # Accept either 'images' (our custom) or 'img' (ultralytics) key
+            if 'images' in x:
+                images = x['images']
+            elif 'img' in x:
+                images = x['img']
+            else:
+                raise KeyError("Input dict must contain 'img' or 'images' key")
             text_features = x.get('text_features', None)
-        else:
+        else:  # plain tensor
             images = x
-            text_features = None
         
         # Base YOLO forward pass
         if self.training_stage == 'base' or not self.use_refinement:
-            return super().forward(images, augment, profile, visualize)
-        
+            return super().forward(images, augment=augment, profile=profile, visualize=visualize)
+
         # Refinement stage forward pass
         predictions, yolo_features = self.extract_yolo_features(images)
-        
+
         if self.use_refinement and self.refinement_module is not None and text_features is not None:
             # Apply refinement
             refined_predictions = self.refinement_module(yolo_features, text_features)
-            
+
             # Combine or replace predictions as needed
-            # This is a simplified approach - you might want more sophisticated fusion
             if self.training:
                 return {'base': predictions, 'refined': refined_predictions}
             else:
                 return refined_predictions
-        
+
         return predictions
 
 

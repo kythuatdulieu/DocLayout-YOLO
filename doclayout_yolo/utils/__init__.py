@@ -395,6 +395,9 @@ DEFAULT_CFG_DICT = yaml_load(DEFAULT_CFG_PATH)
 for k, v in DEFAULT_CFG_DICT.items():
     if isinstance(v, str) and v.lower() == "none":
         DEFAULT_CFG_DICT[k] = None
+# Add custom refinement-related optional keys so they pass alignment checks
+for _extra_key, _default in {"training_stage": None, "use_refinement": False}.items():
+    DEFAULT_CFG_DICT.setdefault(_extra_key, _default)
 DEFAULT_CFG_KEYS = DEFAULT_CFG_DICT.keys()
 DEFAULT_CFG = IterableSimpleNamespace(**DEFAULT_CFG_DICT)
 

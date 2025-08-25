@@ -24,6 +24,7 @@ if __name__ == "__main__":
     parser.add_argument('--device', default="0,1,2,3,4,5,6,7", required=False, type=str)
     parser.add_argument('--save-period', default=10, required=False, type=int)
     parser.add_argument('--patience', default=100, required=False, type=int)
+    parser.add_argument('--amp', default=1, required=False, type=int, help='Use Automatic Mixed Precision (1/0)')
     args = parser.parse_args()
     
     # using '.pt' will load pretrained model
@@ -72,6 +73,7 @@ if __name__ == "__main__":
         batch=args.batch_size,
         device=args.device,
         workers=args.workers,
+    amp=bool(args.amp),
         plots=plot,
         exist_ok=False,
         val=val,

@@ -205,6 +205,9 @@ def get_cfg(cfg: Union[str, Path, Dict, SimpleNamespace] = DEFAULT_CFG_DICT, ove
         (SimpleNamespace): Training arguments namespace.
     """
     cfg = cfg2dict(cfg)
+    if cfg is None:
+        # Fallback to default config dict if a None slipped through
+        cfg = DEFAULT_CFG_DICT.copy()
 
     # Merge overrides
     if overrides:

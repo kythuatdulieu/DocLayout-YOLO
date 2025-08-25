@@ -483,7 +483,28 @@ def strip_optimizer(f: Union[str, Path] = "best.pt", s: str = "") -> None:
             strip_optimizer(f)
         ```
     """
-    x = torch.load(f, map_location=torch.device("cpu"))
+    # Torch 2.6+ defaults torch.load(weights_only=True) which may raise an UnpicklingError
+    # for custom model classes (e.g. YOLOv10DetectionModel) during our final eval stripping step.
+    # We attempt a safe load first; if it fails with the new message we retry with weights_only=False
+    # and optionally register the model class as a safe global. This mirrors torch_safe_load pattern.
+    try:
+        x = torch.load(f, map_location=torch.device("cpu"))
+    except Exception as e:  # broad catch to handle _pickle.UnpicklingError without direct import
+        msg = str(e)
+        if "Weights only load failed" in msg or "Unsupported global" in msg:
+            try:
+                # Allowlist model class if available
+                from torch.serialization import add_safe_globals  # type: ignore
+                try:
+                    from doclayout_yolo.nn.tasks import YOLOv10DetectionModel  # type: ignore
+                    add_safe_globals([YOLOv10DetectionModel])
+                except Exception:
+                    pass
+                x = torch.load(f, map_location=torch.device("cpu"), weights_only=False)
+            except Exception:
+                raise e
+        else:
+            raise e
     if "model" not in x:
         LOGGER.info(f"Skipping {f}, not a valid Ultralytics model.")
         return

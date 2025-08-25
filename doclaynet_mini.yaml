@@ -1,0 +1,14 @@
+# Mini subset of DocLayNet for fast iteration
+# Relative paths from this yaml file location
+# train and val can point to text files listing image paths OR directories
+
+path: /home/duclinh/DocLayout-YOLO/layout_data/doclaynet_mini  # absolute root path
+# train/val point to text files containing absolute image paths
+train: /home/duclinh/DocLayout-YOLO/layout_data/doclaynet_mini/train.txt
+val: /home/duclinh/DocLayout-YOLO/layout_data/doclaynet_mini/val.txt
+# test: optional
+
+# Number of classes
+nc: 11
+# Class names (DocLayNet order)
+names: ["Caption", "Footnote", "Formula", "List-item", "Page-footer", "Page-header", "Picture", "Section-header", "Table", "Text", "Title"]
